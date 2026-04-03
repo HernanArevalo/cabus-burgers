@@ -37,7 +37,8 @@ interface CartContextType {
   paymentAdjustmentPercent: number
   total: number
   confirmedOrder: Order | null
-  confirmOrder: (formData: CheckoutFormData) => void
+  submittingOrder: boolean
+  confirmOrder: (formData: CheckoutFormData) => Promise<void>
   resetOrder: () => void
 }
 
@@ -48,6 +49,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [shippingMethod, setShippingMethod] = useState<ShippingMethod>("retiro")
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("efectivo")
   const [confirmedOrder, setConfirmedOrder] = useState<Order | null>(null)
+  const [submittingOrder, setSubmittingOrder] = useState(false)
 
   const addItem = useCallback(
     (product: Product, selectedVariant: Variant | null, selectedExtras: Extra[], observations: string) => {
@@ -109,19 +111,47 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const total = baseTotal + paymentAdjustmentAmount
 
   const confirmOrder = useCallback(
-    (formData: CheckoutFormData) => {
-      const order: Order = {
-        id: `ORD-${Date.now().toString(36).toUpperCase()}`,
-        items: [...items],
-        subtotal,
-        shippingCost,
-        paymentAdjustment: paymentAdjustmentAmount,
-        total,
-        customer: formData,
-        status: "PENDIENTE",
-        createdAt: new Date().toISOString(),
+    async (formData: CheckoutFormData) => {
+      setSubmittingOrder(true)
+      try {
+        const payload: Omit<Order, "id" | "status" | "createdAt"> = {
+          items: [...items],
+          subtotal,
+          shippingCost,
+          paymentAdjustment: paymentAdjustmentAmount,
+          total,
+          customer: formData,
+          orderNumber: undefined,
+        }
+
+        const response = await fetch("/api/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+
+        if (!response.ok) {
+          throw new Error("No se pudo crear el pedido")
+        }
+
+        const saved = await response.json()
+        const order: Order = {
+          id: saved.id,
+          orderNumber: saved.orderNumber,
+          items: [...items],
+          subtotal,
+          shippingCost,
+          paymentAdjustment: paymentAdjustmentAmount,
+          total,
+          customer: formData,
+          status: saved.status,
+          createdAt: saved.createdAt,
+        }
+
+        setConfirmedOrder(order)
+      } finally {
+        setSubmittingOrder(false)
       }
-      setConfirmedOrder(order)
     },
     [items, subtotal, shippingCost, paymentAdjustmentAmount, total]
   )
@@ -149,6 +179,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       paymentAdjustmentPercent,
       total,
       confirmedOrder,
+      submittingOrder,
       confirmOrder,
       resetOrder,
     }),
@@ -167,6 +198,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       paymentAdjustmentPercent,
       total,
       confirmedOrder,
+      submittingOrder,
       confirmOrder,
       resetOrder,
     ]

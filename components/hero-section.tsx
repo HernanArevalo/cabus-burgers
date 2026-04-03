@@ -1,15 +1,22 @@
 "use client"
 
-import { storeStatus } from "@/lib/mock-data"
-
 interface HeroSectionProps {
   onOrderClick: () => void
+  storeName?: string
+  storeTagline?: string
+  isOpen?: boolean
+  estimatedCloseTime?: string
 }
 
-export function HeroSection({ onOrderClick }: HeroSectionProps) {
+export function HeroSection({
+  onOrderClick,
+  storeName = "CABUS",
+  storeTagline = "Smash burgers artesanales hechas con fuego, amor y los mejores ingredientes.",
+  isOpen = true,
+  estimatedCloseTime,
+}: HeroSectionProps) {
   return (
     <section className="relative flex flex-col items-center justify-center px-6 py-16 text-center bg-background overflow-hidden">
-      {/* Background pattern */}
       <div className="absolute inset-0 opacity-5">
         <div className="absolute inset-0" style={{
           backgroundImage: "radial-gradient(circle at 2px 2px, currentColor 1px, transparent 0)",
@@ -18,7 +25,6 @@ export function HeroSection({ onOrderClick }: HeroSectionProps) {
       </div>
 
       <div className="relative z-10 flex flex-col items-center gap-6 max-w-md mx-auto">
-        {/* Logo placeholder */}
         <div className="flex items-center justify-center w-20 h-20 rounded-full bg-primary">
           <svg width="40" height="40" viewBox="0 0 40 40" fill="none" className="text-primary-foreground">
             <path d="M6 24h28v2c0 2.2-1.8 4-4 4H10c-2.2 0-4-1.8-4-4v-2z" fill="currentColor" />
@@ -30,39 +36,32 @@ export function HeroSection({ onOrderClick }: HeroSectionProps) {
           </svg>
         </div>
 
-        {/* Store name */}
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground font-mono sm:text-4xl">
-            CABUS
+            {storeName}
           </h1>
-          <p className="text-lg font-semibold tracking-widest text-primary font-mono">
-            HAMBURGUESAS
-          </p>
         </div>
 
-        {/* Tagline */}
         <p className="text-muted-foreground text-base leading-relaxed max-w-xs">
-          Smash burgers artesanales hechas con fuego, amor y los mejores ingredientes.
+          {storeTagline}
         </p>
 
-        {/* Store status badge */}
         <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-secondary">
           <span
             className={`w-2.5 h-2.5 rounded-full ${
-              storeStatus.isOpen
+              isOpen
                 ? "bg-green-400 animate-pulse"
                 : "bg-red-400"
             }`}
           />
           <span className="text-sm font-medium text-secondary-foreground">
-            {storeStatus.isOpen ? "Abierto ahora" : `Cerrado - Abre a las ${storeStatus.nextOpenTime}`}
+            {isOpen ? "Abierto ahora" : `Cerrado${estimatedCloseTime ? ` - Cierra ${estimatedCloseTime}` : ""}`}
           </span>
         </div>
 
-        {/* CTA button */}
         <button
           onClick={onOrderClick}
-          disabled={!storeStatus.isOpen}
+          disabled={!isOpen}
           className="w-full max-w-xs px-8 py-4 text-lg font-bold rounded-xl bg-primary text-primary-foreground transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
         >
           HACER MI PEDIDO

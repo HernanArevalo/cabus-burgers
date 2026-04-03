@@ -15,13 +15,14 @@ export interface Product {
   id: string
   name: string
   description: string
-  price: number        // base price shown when no variants; or minimum variant price
+  price: number
   image: string
   category: string
+  categoryId?: string
   badge?: string
   inStock: boolean
   extras: Extra[]
-  variants: Variant[]  // if empty, no variant selection shown
+  variants: Variant[]
 }
 
 export interface CartItem {
@@ -46,7 +47,7 @@ export interface PaymentMethodOption {
   id: PaymentMethod
   label: string
   description: string
-  adjustment: number // percentage: negative = discount, positive = surcharge
+  adjustment: number
 }
 
 export interface CheckoutFormData {
@@ -64,6 +65,7 @@ export interface CheckoutFormData {
 
 export interface Order {
   id: string
+  orderNumber?: string
   items: CartItem[]
   subtotal: number
   shippingCost: number

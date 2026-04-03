@@ -13,7 +13,7 @@ function buildWhatsAppMessage(order: Order): string {
 
   lines.push(`*Nuevo pedido - CABUS HAMBURGUESAS*`)
   lines.push(``)
-  lines.push(`*Pedido:* ${order.id}`)
+  lines.push(`*Pedido:* ${order.orderNumber ?? order.id}`)
   lines.push(`*Nombre:* ${order.customer.name}`)
   lines.push(`*Telefono:* ${order.customer.phone}`)
   lines.push(`*Email:* ${order.customer.email}`)
@@ -120,7 +120,7 @@ export function OrderConfirmation({
               Pedido confirmado
             </h3>
             <p className="text-sm text-card-foreground/50 mt-1">
-              Pedido #{order.id}
+              Pedido #{order.orderNumber ?? order.id}
             </p>
           </div>
 
