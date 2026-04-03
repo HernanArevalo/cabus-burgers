@@ -26,6 +26,7 @@ export function CheckoutForm({ onOrderConfirmed }: CheckoutFormProps) {
     paymentMethod,
     setPaymentMethod,
     confirmOrder,
+    submittingOrder,
     items,
   } = useCart()
 
@@ -43,6 +44,7 @@ export function CheckoutForm({ onOrderConfirmed }: CheckoutFormProps) {
   })
 
   const [errors, setErrors] = useState<Partial<Record<keyof CheckoutFormData, string>>>({})
+  const [submitError, setSubmitError] = useState("")
 
   const updateField = (field: keyof CheckoutFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -86,11 +88,17 @@ export function CheckoutForm({ onOrderConfirmed }: CheckoutFormProps) {
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    setSubmitError("")
     if (!validate()) return
-    confirmOrder(formData)
-    onOrderConfirmed()
+
+    try {
+      await confirmOrder(formData)
+      onOrderConfirmed()
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "No se pudo registrar el pedido")
+    }
   }
 
   const shippingIcon = {
@@ -311,11 +319,15 @@ export function CheckoutForm({ onOrderConfirmed }: CheckoutFormProps) {
 
       {/* Submit */}
       <div className="px-5 py-4 border-t border-border/20 bg-card">
+        {submitError && (
+          <p className="text-sm text-destructive mb-2">{submitError}</p>
+        )}
         <button
           type="submit"
-          className="w-full px-6 py-4 rounded-xl bg-primary text-primary-foreground font-bold text-base transition-all hover:brightness-110 active:scale-[0.98] shadow-lg shadow-primary/20"
+          disabled={submittingOrder}
+          className="w-full px-6 py-4 rounded-xl bg-primary text-primary-foreground font-bold text-base transition-all hover:brightness-110 active:scale-[0.98] shadow-lg shadow-primary/20 disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          Confirmar Pedido
+          {submittingOrder ? "Confirmando..." : "Confirmar Pedido"}
         </button>
       </div>
     </form>

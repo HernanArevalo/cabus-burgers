@@ -1,13 +1,12 @@
 "use client"
 
-import { categories } from "@/lib/mock-data"
-
 interface CategoryNavProps {
+  categories: string[]
   activeCategory: string
   onCategoryChange: (category: string) => void
 }
 
-export function CategoryNav({ activeCategory, onCategoryChange }: CategoryNavProps) {
+export function CategoryNav({ categories, activeCategory, onCategoryChange }: CategoryNavProps) {
   return (
     <nav className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border" aria-label="Categorias de productos">
       <div className="flex gap-2 px-4 py-3 overflow-x-auto no-scrollbar max-w-3xl mx-auto">
