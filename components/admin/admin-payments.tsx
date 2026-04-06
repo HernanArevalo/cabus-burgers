@@ -1,230 +1,43 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import type { PaymentMethodConfig } from "@/lib/types"
-import { mockPaymentMethods } from "@/lib/admin-mock-data"
+import { createPaymentMethod, deletePaymentMethod, getPaymentMethods, updatePaymentMethod } from "@/lib/api"
 import { Switch } from "@/components/ui/switch"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Plus, Pencil, Trash2 } from "lucide-react"
 
 export function AdminPayments() {
-  const [methods, setMethods] = useState<PaymentMethodConfig[]>(mockPaymentMethods)
+  const [methods, setMethods] = useState<PaymentMethodConfig[]>([])
   const [modalOpen, setModalOpen] = useState(false)
-  const [editingMethod, setEditingMethod] = useState<PaymentMethodConfig | null>(null)
-  const [formName, setFormName] = useState("")
-  const [formDescription, setFormDescription] = useState("")
-  const [formAdjustment, setFormAdjustment] = useState("")
-  const [formActive, setFormActive] = useState(true)
+  const [editing, setEditing] = useState<PaymentMethodConfig | null>(null)
+  const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
+  const [adjustment, setAdjustment] = useState("0")
+  const [active, setActive] = useState(true)
 
-  const openCreate = () => {
-    setEditingMethod(null)
-    setFormName("")
-    setFormDescription("")
-    setFormAdjustment("0")
-    setFormActive(true)
-    setModalOpen(true)
-  }
+  useEffect(() => { getPaymentMethods().then((d) => setMethods(d || [])) }, [])
 
-  const openEdit = (method: PaymentMethodConfig) => {
-    setEditingMethod(method)
-    setFormName(method.name)
-    setFormDescription(method.description)
-    setFormAdjustment(method.adjustment.toString())
-    setFormActive(method.active)
-    setModalOpen(true)
-  }
+  const openCreate = () => { setEditing(null); setName(""); setDescription(""); setAdjustment("0"); setActive(true); setModalOpen(true) }
+  const openEdit = (m: PaymentMethodConfig) => { setEditing(m); setName(m.name); setDescription(m.description); setAdjustment(m.adjustment.toString()); setActive(m.active); setModalOpen(true) }
 
-  const handleSave = () => {
-    if (editingMethod) {
-      setMethods((prev) =>
-        prev.map((m) =>
-          m.id === editingMethod.id
-            ? {
-                ...m,
-                name: formName,
-                description: formDescription,
-                adjustment: parseInt(formAdjustment) || 0,
-                active: formActive,
-              }
-            : m
-        )
-      )
+  const handleSave = async () => {
+    if (editing) {
+      const updated = await updatePaymentMethod(editing.id, { name, description, adjustment: parseInt(adjustment) || 0, active })
+      if (!updated?.error) setMethods((prev) => prev.map((m) => (m.id === editing.id ? updated : m)))
     } else {
-      const newMethod: PaymentMethodConfig = {
-        id: `pay-${Date.now()}`,
-        name: formName,
-        description: formDescription,
-        adjustment: parseInt(formAdjustment) || 0,
-        active: formActive,
-      }
-      setMethods((prev) => [...prev, newMethod])
+      const created = await createPaymentMethod({ name, description, adjustment: parseInt(adjustment) || 0, active })
+      if (!created?.error) setMethods((prev) => [...prev, created])
     }
     setModalOpen(false)
   }
 
-  const handleDelete = (id: string) => {
-    setMethods((prev) => prev.filter((m) => m.id !== id))
-  }
-
-  const handleToggle = (id: string) => {
-    setMethods((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, active: !m.active } : m))
-    )
-  }
-
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-bold" style={{ color: "#1c1c1c" }}>Metodos de pago</h1>
-          <p className="text-sm mt-1" style={{ color: "#999999" }}>
-            Configura descuentos y recargos por medio de pago
-          </p>
-        </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:brightness-110"
-          style={{ background: "#1a3a2a", color: "#f5f5f0" }}
-        >
-          <Plus className="w-4 h-4" />
-          Agregar
-        </button>
-      </div>
+    <div className="max-w-3xl mx-auto">
+      <div className="flex items-center justify-between mb-6"><div><h1 className="text-xl font-bold" style={{ color: "#1c1c1c" }}>Pagos</h1><p className="text-sm mt-1" style={{ color: "#999999" }}>Configura metodos de pago y ajustes</p></div><button onClick={openCreate} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: "#1a3a2a", color: "#f5f5f0" }}><Plus className="w-4 h-4" />Agregar</button></div>
+      <div className="rounded-xl border overflow-hidden" style={{ background: "#ffffff", borderColor: "#e8e8e5" }}><table className="w-full text-sm"><thead><tr style={{ background: "#fafaf8" }}><th className="text-left py-3 px-4 text-xs" style={{ color: "#999999" }}>Metodo</th><th className="text-right py-3 px-4 text-xs" style={{ color: "#999999" }}>Ajuste</th><th className="text-center py-3 px-4 text-xs" style={{ color: "#999999" }}>Activo</th><th className="text-center py-3 px-4 text-xs" style={{ color: "#999999" }}>Acciones</th></tr></thead><tbody>{methods.map((m, i) => <tr key={m.id} style={{ borderTop: i > 0 ? "1px solid #f0f0ed" : "none" }}><td className="py-3 px-4"><p className="font-semibold">{m.name}</p><p className="text-xs text-gray-500">{m.description}</p></td><td className="py-3 px-4 text-right font-bold">{m.adjustment}%</td><td className="py-3 px-4"><div className="flex justify-center"><Switch checked={m.active} onCheckedChange={async () => { const updated = await updatePaymentMethod(m.id, { active: !m.active }); if (!updated?.error) setMethods((prev) => prev.map((item) => (item.id === m.id ? updated : item))) }} /></div></td><td className="py-3 px-4"><div className="flex justify-center gap-1"><button onClick={() => openEdit(m)} className="w-8 h-8 flex items-center justify-center"><Pencil className="w-3.5 h-3.5" /></button><button onClick={async () => { const r = await deletePaymentMethod(m.id); if (!r?.error) setMethods((prev) => prev.filter((item) => item.id !== m.id)) }} className="w-8 h-8 flex items-center justify-center"><Trash2 className="w-3.5 h-3.5 text-red-500" /></button></div></td></tr>)}</tbody></table></div>
 
-      <div className="flex flex-col gap-3">
-        {methods.map((method) => (
-          <div
-            key={method.id}
-            className="flex items-center gap-4 p-4 rounded-xl border"
-            style={{ background: "#ffffff", borderColor: "#e8e8e5" }}
-          >
-            <div className="flex-1 min-w-0">
-              <p
-                className="text-sm font-semibold"
-                style={{ color: method.active ? "#1c1c1c" : "#aaaaaa" }}
-              >
-                {method.name}
-              </p>
-              <p className="text-xs mt-0.5" style={{ color: "#999999" }}>
-                {method.description}
-              </p>
-              {method.adjustment !== 0 && (
-                <span
-                  className="inline-flex px-2 py-0.5 rounded-md text-xs font-bold mt-1"
-                  style={{
-                    background: method.adjustment < 0 ? "rgba(34, 197, 94, 0.08)" : "rgba(239, 68, 68, 0.08)",
-                    color: method.adjustment < 0 ? "#22c55e" : "#ef4444",
-                  }}
-                >
-                  {method.adjustment > 0 ? "+" : ""}{method.adjustment}%
-                </span>
-              )}
-            </div>
-            <Switch
-              checked={method.active}
-              onCheckedChange={() => handleToggle(method.id)}
-              className="data-[state=checked]:bg-green-500"
-            />
-            <button
-              onClick={() => openEdit(method)}
-              className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors hover:bg-gray-100"
-              aria-label={`Editar ${method.name}`}
-            >
-              <Pencil className="w-3.5 h-3.5" style={{ color: "#888888" }} />
-            </button>
-            <button
-              onClick={() => handleDelete(method.id)}
-              className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors hover:bg-red-50"
-              aria-label={`Eliminar ${method.name}`}
-            >
-              <Trash2 className="w-3.5 h-3.5" style={{ color: "#ef4444" }} />
-            </button>
-          </div>
-        ))}
-      </div>
-
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent style={{ background: "#ffffff" }}>
-          <DialogHeader>
-            <DialogTitle style={{ color: "#1c1c1c" }}>
-              {editingMethod ? "Editar metodo" : "Nuevo metodo de pago"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 mt-2">
-            <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: "#666666" }}>
-                Nombre
-              </label>
-              <input
-                type="text"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2"
-                style={{ borderColor: "#e8e8e5", color: "#1c1c1c", "--tw-ring-color": "#1a3a2a" } as React.CSSProperties}
-                placeholder="Nombre"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: "#666666" }}>
-                Descripcion
-              </label>
-              <input
-                type="text"
-                value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2"
-                style={{ borderColor: "#e8e8e5", color: "#1c1c1c", "--tw-ring-color": "#1a3a2a" } as React.CSSProperties}
-                placeholder="Descripcion breve"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: "#666666" }}>
-                Ajuste (%) - negativo = descuento, positivo = recargo
-              </label>
-              <input
-                type="number"
-                value={formAdjustment}
-                onChange={(e) => setFormAdjustment(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2"
-                style={{ borderColor: "#e8e8e5", color: "#1c1c1c", "--tw-ring-color": "#1a3a2a" } as React.CSSProperties}
-                placeholder="Ej: -10 para 10% descuento"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-semibold" style={{ color: "#1c1c1c" }}>
-                Activo
-              </label>
-              <Switch
-                checked={formActive}
-                onCheckedChange={setFormActive}
-                className="data-[state=checked]:bg-green-500"
-              />
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => setModalOpen(false)}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-colors hover:bg-gray-50"
-                style={{ borderColor: "#e8e8e5", color: "#666666" }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={!formName}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all hover:brightness-110 disabled:opacity-40"
-                style={{ background: "#1a3a2a", color: "#f5f5f0" }}
-              >
-                {editingMethod ? "Guardar" : "Crear"}
-              </button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}><DialogContent style={{ background: "#fff" }}><DialogHeader><DialogTitle>{editing ? "Editar metodo" : "Nuevo metodo"}</DialogTitle></DialogHeader><div className="flex flex-col gap-3"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre" className="border rounded-lg px-3 py-2" /><input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descripcion" className="border rounded-lg px-3 py-2" /><input type="number" value={adjustment} onChange={(e) => setAdjustment(e.target.value)} placeholder="10" className="border rounded-lg px-3 py-2" /><div className="flex items-center justify-between"><span>Activo</span><Switch checked={active} onCheckedChange={setActive} /></div><button onClick={handleSave} className="rounded-lg py-2 bg-[#1a3a2a] text-white">Guardar</button></div></DialogContent></Dialog>
     </div>
   )
 }

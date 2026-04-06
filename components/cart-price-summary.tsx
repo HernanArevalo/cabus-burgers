@@ -5,9 +5,9 @@ import { useCart } from "@/lib/cart-context"
 export function CartPriceSummary() {
   const {
     subtotal,
-    shippingMethod,
+    shippingMethodLabel,
     shippingCost,
-    paymentMethod,
+    paymentMethodLabel,
     paymentAdjustmentPercent,
     paymentAdjustmentAmount,
     total,
@@ -24,7 +24,7 @@ export function CartPriceSummary() {
         <span>
           Envio{" "}
           <span className="text-card-foreground/40">
-            ({shippingMethod === "delivery" ? "Delivery" : "Retiro en local"})
+            ({shippingMethodLabel})
           </span>
         </span>
         <span>
@@ -44,9 +44,7 @@ export function CartPriceSummary() {
         >
           <span>
             {paymentAdjustmentPercent < 0 ? "Descuento" : "Recargo"}{" "}
-            {paymentMethod === "transferencia"
-              ? "transferencia"
-              : "MercadoPago"}{" "}
+            {paymentMethodLabel}{" "}
             ({Math.abs(paymentAdjustmentPercent)}%)
           </span>
           <span>

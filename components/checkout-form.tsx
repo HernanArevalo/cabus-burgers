@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { useCart } from "@/lib/cart-context"
 import type { CheckoutFormData, ShippingMethod, PaymentMethod } from "@/lib/types"
-import { paymentMethods, neighborhoods } from "@/lib/mock-data"
+import { getPaymentMethods, getShippingMethods } from "@/lib/api"
 import { CartPriceSummary } from "@/components/cart-price-summary"
 import {
   Truck,
@@ -19,6 +19,22 @@ interface CheckoutFormProps {
   onOrderConfirmed: () => void
 }
 
+interface ShippingMethodOption {
+  id: string
+  name: string
+  description: string
+  cost: number
+  active: boolean
+}
+
+interface PaymentMethodOption {
+  id: string
+  name: string
+  description: string
+  adjustment: number
+  active: boolean
+}
+
 export function CheckoutForm({ onOrderConfirmed }: CheckoutFormProps) {
   const {
     shippingMethod,
@@ -28,6 +44,9 @@ export function CheckoutForm({ onOrderConfirmed }: CheckoutFormProps) {
     confirmOrder,
     items,
   } = useCart()
+
+  const [shippingMethods, setShippingMethods] = useState<ShippingMethodOption[]>([])
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([])
 
   const [formData, setFormData] = useState<CheckoutFormData>({
     name: "",
@@ -42,9 +61,55 @@ export function CheckoutForm({ onOrderConfirmed }: CheckoutFormProps) {
     observations: "",
   })
 
+  useEffect(() => {
+    const fetchCheckoutConfig = async () => {
+      try {
+        const [shippingData, paymentData] = await Promise.all([
+          getShippingMethods(true),
+          getPaymentMethods(true),
+        ])
+
+        const normalizedShipping = (shippingData || []) as ShippingMethodOption[]
+        const normalizedPayment = (paymentData || []) as PaymentMethodOption[]
+
+        setShippingMethods(normalizedShipping)
+        setPaymentMethods(normalizedPayment)
+
+        if (normalizedShipping.length > 0 && !normalizedShipping.some((m) => m.id === formData.shippingMethod)) {
+          const defaultShipping = normalizedShipping[0].id as ShippingMethod
+          setShippingMethod(defaultShipping)
+          setFormData((prev) => ({ ...prev, shippingMethod: defaultShipping }))
+        }
+
+        if (normalizedPayment.length > 0 && !normalizedPayment.some((m) => m.id === formData.paymentMethod)) {
+          const defaultPayment = normalizedPayment[0].id as PaymentMethod
+          setPaymentMethod(defaultPayment)
+          setFormData((prev) => ({ ...prev, paymentMethod: defaultPayment }))
+        }
+      } catch (error) {
+        console.error("Error fetching checkout config:", error)
+      }
+    }
+
+    fetchCheckoutConfig()
+  }, [])
+
   const [errors, setErrors] = useState<Partial<Record<keyof CheckoutFormData, string>>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const deliveryShippingMethodIds = useMemo(
+    () => shippingMethods.filter((method) => method.name.toLowerCase().includes("delivery")).map((m) => m.id),
+    [shippingMethods]
+  )
+
+  const efectivoMethodIds = useMemo(
+    () => paymentMethods.filter((method) => method.name.toLowerCase().includes("efectivo")).map((m) => m.id),
+    [paymentMethods]
+  )
+
+  const isDeliverySelected = deliveryShippingMethodIds.includes(formData.shippingMethod)
+  const isCashSelected = efectivoMethodIds.includes(formData.paymentMethod)
 
   const updateField = (field: keyof CheckoutFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -78,10 +143,10 @@ export function CheckoutForm({ onOrderConfirmed }: CheckoutFormProps) {
       newErrors.email = "Email invalido"
     }
 
-    if (formData.shippingMethod === "delivery") {
+    if (isDeliverySelected) {
       if (!formData.street.trim()) newErrors.street = "Ingresa la calle"
       if (!formData.number.trim()) newErrors.number = "Ingresa la altura"
-      if (!formData.neighborhood.trim()) newErrors.neighborhood = "Selecciona un barrio"
+      if (!formData.neighborhood.trim()) newErrors.neighborhood = "Ingresa el barrio"
     }
 
     setErrors(newErrors)
@@ -102,15 +167,16 @@ export function CheckoutForm({ onOrderConfirmed }: CheckoutFormProps) {
     onOrderConfirmed()
   }
 
-  const shippingIcon = {
-    retiro: <Store className="w-5 h-5" />,
-    delivery: <Truck className="w-5 h-5" />,
-  }
+  const shippingIcon = (methodName: string) =>
+    methodName.toLowerCase().includes("delivery")
+      ? <Truck className="w-5 h-5" />
+      : <Store className="w-5 h-5" />
 
-  const paymentIcon = {
-    efectivo: <Banknote className="w-5 h-5" />,
-    transferencia: <ArrowRightLeft className="w-5 h-5" />,
-    mercadopago: <CreditCard className="w-5 h-5" />,
+  const paymentIcon = (methodName: string) => {
+    const name = methodName.toLowerCase()
+    if (name.includes("efectivo")) return <Banknote className="w-5 h-5" />
+    if (name.includes("transfer")) return <ArrowRightLeft className="w-5 h-5" />
+    return <CreditCard className="w-5 h-5" />
   }
 
   if (items.length === 0) return null
@@ -119,69 +185,44 @@ export function CheckoutForm({ onOrderConfirmed }: CheckoutFormProps) {
     <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
       <div className="flex-1 overflow-y-auto px-5 py-5">
         <div className="flex flex-col gap-6">
-          {/* Personal info */}
           <fieldset>
             <legend className="text-xs font-bold uppercase tracking-wider text-card-foreground/40 mb-3">
               Datos personales
             </legend>
             <div className="flex flex-col gap-3">
-              <FormInput
-                label="Nombre"
-                value={formData.name}
-                onChange={(v) => updateField("name", v)}
-                error={errors.name}
-                placeholder="Tu nombre completo"
-              />
-              <FormInput
-                label="Telefono"
-                value={formData.phone}
-                onChange={(v) => updateField("phone", v)}
-                error={errors.phone}
-                placeholder="Ej: 351 1234567"
-                type="tel"
-              />
-              <FormInput
-                label="Email"
-                value={formData.email}
-                onChange={(v) => updateField("email", v)}
-                error={errors.email}
-                placeholder="tu@email.com"
-                type="email"
-              />
+              <FormInput label="Nombre" value={formData.name} onChange={(v) => updateField("name", v)} error={errors.name} placeholder="Tu nombre completo" />
+              <FormInput label="Telefono" value={formData.phone} onChange={(v) => updateField("phone", v)} error={errors.phone} placeholder="Ej: 351 1234567" type="tel" />
+              <FormInput label="Email" value={formData.email} onChange={(v) => updateField("email", v)} error={errors.email} placeholder="tu@email.com" type="email" />
             </div>
           </fieldset>
 
-          {/* Shipping method */}
           <fieldset>
             <legend className="text-xs font-bold uppercase tracking-wider text-card-foreground/40 mb-3">
               Metodo de envio
             </legend>
             <div className="grid grid-cols-2 gap-3">
-              {(["retiro", "delivery"] as const).map((method) => (
+              {shippingMethods.map((method) => (
                 <button
                   type="button"
-                  key={method}
-                  onClick={() => handleShippingChange(method)}
+                  key={method.id}
+                  onClick={() => handleShippingChange(method.id as ShippingMethod)}
                   className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                    formData.shippingMethod === method
+                    formData.shippingMethod === method.id
                       ? "border-primary bg-primary/5 text-primary"
                       : "border-border/30 text-card-foreground/50 hover:border-card-foreground/20"
                   }`}
                 >
-                  {shippingIcon[method]}
-                  <span className="text-sm font-semibold">
-                    {method === "retiro" ? "Retiro en local" : "Delivery"}
-                  </span>
+                  {shippingIcon(method.name)}
+                  <span className="text-sm font-semibold">{method.name}</span>
                   <span className="text-xs text-card-foreground/40">
-                    {method === "retiro" ? "Gratis" : "$800"}
+                    {method.cost === 0 ? "Gratis" : `$${method.cost.toLocaleString("es-AR")}`}
                   </span>
                 </button>
               ))}
             </div>
           </fieldset>
 
-          {/* Delivery address */}
-          {formData.shippingMethod === "delivery" && (
+          {isDeliverySelected && (
             <fieldset className="animate-in fade-in-0 slide-in-from-top-2 duration-300">
               <legend className="text-xs font-bold uppercase tracking-wider text-card-foreground/40 mb-3">
                 <span className="flex items-center gap-1.5">
@@ -192,51 +233,15 @@ export function CheckoutForm({ onOrderConfirmed }: CheckoutFormProps) {
               <div className="flex flex-col gap-3">
                 <div className="grid grid-cols-3 gap-3">
                   <div className="col-span-2">
-                    <FormInput
-                      label="Calle"
-                      value={formData.street}
-                      onChange={(v) => updateField("street", v)}
-                      error={errors.street}
-                      placeholder="Nombre de la calle"
-                    />
+                    <FormInput label="Calle" value={formData.street} onChange={(v) => updateField("street", v)} error={errors.street} placeholder="Nombre de la calle" />
                   </div>
-                  <FormInput
-                    label="Altura"
-                    value={formData.number}
-                    onChange={(v) => updateField("number", v)}
-                    error={errors.number}
-                    placeholder="1234"
-                  />
+                  <FormInput label="Altura" value={formData.number} onChange={(v) => updateField("number", v)} error={errors.number} placeholder="1234" />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-card-foreground/60 mb-1.5">
-                    Barrio
-                  </label>
-                  <select
-                    value={formData.neighborhood}
-                    onChange={(e) => updateField("neighborhood", e.target.value)}
-                    className={`w-full px-3 py-2.5 rounded-xl border text-sm text-card-foreground bg-card transition-colors appearance-none ${
-                      errors.neighborhood
-                        ? "border-destructive"
-                        : "border-border/30 focus:border-primary"
-                    } focus:outline-none focus:ring-2 focus:ring-primary/20`}
-                  >
-                    <option value="">Seleccionar barrio...</option>
-                    {neighborhoods.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.neighborhood && (
-                    <p className="text-xs text-destructive mt-1">{errors.neighborhood}</p>
-                  )}
-                </div>
+                <FormInput label="Barrio" value={formData.neighborhood} onChange={(v) => updateField("neighborhood", v)} error={errors.neighborhood} placeholder="Nombre del barrio" />
               </div>
             </fieldset>
           )}
 
-          {/* Payment method */}
           <fieldset>
             <legend className="text-xs font-bold uppercase tracking-wider text-card-foreground/40 mb-3">
               Metodo de pago
@@ -246,35 +251,21 @@ export function CheckoutForm({ onOrderConfirmed }: CheckoutFormProps) {
                 <button
                   type="button"
                   key={pm.id}
-                  onClick={() => handlePaymentChange(pm.id)}
+                  onClick={() => handlePaymentChange(pm.id as PaymentMethod)}
                   className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all text-left ${
                     formData.paymentMethod === pm.id
                       ? "border-primary bg-primary/5"
                       : "border-border/30 hover:border-card-foreground/20"
                   }`}
                 >
-                  <span
-                    className={`shrink-0 ${
-                      formData.paymentMethod === pm.id
-                        ? "text-primary"
-                        : "text-card-foreground/40"
-                    }`}
-                  >
-                    {paymentIcon[pm.id]}
+                  <span className={`shrink-0 ${formData.paymentMethod === pm.id ? "text-primary" : "text-card-foreground/40"}`}>
+                    {paymentIcon(pm.name)}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p
-                      className={`text-sm font-semibold ${
-                        formData.paymentMethod === pm.id
-                          ? "text-primary"
-                          : "text-card-foreground/70"
-                      }`}
-                    >
-                      {pm.label}
+                    <p className={`text-sm font-semibold ${formData.paymentMethod === pm.id ? "text-primary" : "text-card-foreground/70"}`}>
+                      {pm.name}
                     </p>
-                    <p className="text-xs text-card-foreground/40">
-                      {pm.description}
-                    </p>
+                    <p className="text-xs text-card-foreground/40">{pm.description}</p>
                   </div>
                   {formData.paymentMethod === pm.id && (
                     <Check className="w-4 h-4 text-primary shrink-0" />
@@ -284,8 +275,7 @@ export function CheckoutForm({ onOrderConfirmed }: CheckoutFormProps) {
             </div>
           </fieldset>
 
-          {/* Cash amount */}
-          {formData.paymentMethod === "efectivo" && (
+          {isCashSelected && (
             <div className="animate-in fade-in-0 slide-in-from-top-2 duration-300">
               <FormInput
                 label="Con cuanto pagas?"
@@ -297,7 +287,6 @@ export function CheckoutForm({ onOrderConfirmed }: CheckoutFormProps) {
             </div>
           )}
 
-          {/* Observations */}
           <div>
             <label className="block text-xs font-semibold text-card-foreground/60 mb-1.5">
               Observaciones generales
@@ -311,18 +300,14 @@ export function CheckoutForm({ onOrderConfirmed }: CheckoutFormProps) {
             />
           </div>
 
-          {/* Price summary */}
           <div className="p-4 rounded-xl bg-card-foreground/[0.02] border border-border/20">
             <CartPriceSummary />
           </div>
         </div>
       </div>
 
-      {/* Submit */}
       <div className="px-5 py-4 border-t border-border/20 bg-card">
-        {submitError && (
-          <p className="text-sm text-destructive mb-3">{submitError}</p>
-        )}
+        {submitError && <p className="text-sm text-destructive mb-3">{submitError}</p>}
         <button
           type="submit"
           disabled={isSubmitting}

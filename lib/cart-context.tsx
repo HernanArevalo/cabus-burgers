@@ -6,6 +6,7 @@ import {
   useState,
   useCallback,
   useMemo,
+  useEffect,
   type ReactNode,
 } from "react"
 import type {
@@ -18,8 +19,7 @@ import type {
   Order,
   CheckoutFormData,
 } from "./types"
-import { DELIVERY_COST, paymentMethods } from "./mock-data"
-import { createOrder } from "./api"
+import { createOrder, getShippingMethods, getPaymentMethods } from "./api"
 
 interface CartContextType {
   items: CartItem[]
@@ -36,6 +36,8 @@ interface CartContextType {
   shippingCost: number
   paymentAdjustmentAmount: number
   paymentAdjustmentPercent: number
+  shippingMethodLabel: string
+  paymentMethodLabel: string
   total: number
   confirmedOrder: Order | null
   confirmOrder: (formData: CheckoutFormData) => Promise<boolean>
@@ -44,11 +46,56 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined)
 
+interface ShippingMethodOption {
+  id: string
+  name: string
+  cost: number
+  active: boolean
+}
+
+interface PaymentMethodOption {
+  id: string
+  name: string
+  adjustment: number
+  active: boolean
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([])
   const [shippingMethod, setShippingMethod] = useState<ShippingMethod>("retiro")
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("efectivo")
   const [confirmedOrder, setConfirmedOrder] = useState<Order | null>(null)
+  const [shippingMethods, setShippingMethods] = useState<ShippingMethodOption[]>([])
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([])
+
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        const [shippingData, paymentData] = await Promise.all([
+          getShippingMethods(true),
+          getPaymentMethods(true),
+        ])
+
+        const normalizedShipping = (shippingData || []) as ShippingMethodOption[]
+        const normalizedPayments = (paymentData || []) as PaymentMethodOption[]
+
+        setShippingMethods(normalizedShipping)
+        setPaymentMethods(normalizedPayments)
+
+        if (normalizedShipping.length > 0) {
+          setShippingMethod(normalizedShipping[0].id as ShippingMethod)
+        }
+
+        if (normalizedPayments.length > 0) {
+          setPaymentMethod(normalizedPayments[0].id as PaymentMethod)
+        }
+      } catch (error) {
+        console.error("Error fetching shipping/payment methods:", error)
+      }
+    }
+
+    fetchOptions()
+  }, [])
 
   const addItem = useCallback(
     (product: Product, selectedVariant: Variant | null, selectedExtras: Extra[], observations: string) => {
@@ -87,9 +134,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const clearCart = useCallback(() => {
     setItems([])
-    setShippingMethod("retiro")
-    setPaymentMethod("efectivo")
-  }, [])
+    setShippingMethod((shippingMethods[0]?.id ?? "retiro") as ShippingMethod)
+    setPaymentMethod((paymentMethods[0]?.id ?? "efectivo") as PaymentMethod)
+  }, [paymentMethods, shippingMethods])
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0)
 
@@ -98,10 +145,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     0
   )
 
-  const shippingCost = shippingMethod === "delivery" ? DELIVERY_COST : 0
+  const selectedShipping = shippingMethods.find((m) => m.id === shippingMethod)
+  const shippingCost = selectedShipping?.cost ?? 0
+  const shippingMethodLabel = selectedShipping?.name ?? "Sin metodo"
 
   const paymentOption = paymentMethods.find((p) => p.id === paymentMethod)
   const paymentAdjustmentPercent = paymentOption?.adjustment ?? 0
+  const paymentMethodLabel = paymentOption?.name ?? "Sin metodo"
 
   const baseTotal = subtotal + shippingCost
   const paymentAdjustmentAmount = Math.round(
@@ -133,10 +183,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
             phone: formData.phone,
             email: formData.email,
             shippingMethod: formData.shippingMethod,
+            shippingMethodId: formData.shippingMethod,
             street: formData.street,
             number: formData.number,
             neighborhood: formData.neighborhood,
             paymentMethod: formData.paymentMethod,
+            paymentMethodId: formData.paymentMethod,
             cashAmount: formData.cashAmount,
             observations: formData.observations,
           },
@@ -185,6 +237,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       shippingCost,
       paymentAdjustmentAmount,
       paymentAdjustmentPercent,
+      shippingMethodLabel,
+      paymentMethodLabel,
       total,
       confirmedOrder,
       confirmOrder,
@@ -203,6 +257,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       shippingCost,
       paymentAdjustmentAmount,
       paymentAdjustmentPercent,
+      shippingMethodLabel,
+      paymentMethodLabel,
       total,
       confirmedOrder,
       confirmOrder,
