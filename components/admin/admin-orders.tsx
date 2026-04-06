@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import type { Order, OrderStatus } from "@/lib/types"
-import { mockOrders as initialOrders, mockStoreConfig } from "@/lib/admin-mock-data"
+import { getOrders, updateOrderStatus } from "@/lib/api"
 import {
   Dialog,
   DialogContent,
@@ -57,7 +57,7 @@ const nextStatusLabel: Record<string, string> = {
 }
 
 function generateWhatsAppMessage(order: Order): string {
-  const template = mockStoreConfig.messageTemplates.orderConfirmation
+  const template = "Hola {{nombre}}! Tu pedido #{{pedido_id}} fue confirmado."
   return template
     .replace("{{nombre}}", order.customer.name)
     .replace("{{pedido_id}}", order.id)
@@ -69,26 +69,57 @@ function formatTime(dateStr: string) {
 }
 
 export function AdminOrders() {
-  const [orders, setOrders] = useState<Order[]>(initialOrders)
+  const [orders, setOrders] = useState<Order[]>([])
   const [filterStatus, setFilterStatus] = useState<"todos" | OrderStatus>("todos")
   const [detailOrder, setDetailOrder] = useState<Order | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        setIsLoading(true)
+        const ordersData = await getOrders()
+        setOrders(ordersData || [])
+        setError(null)
+      } catch (err) {
+        console.error("Error fetching orders:", err)
+        setError("No se pudieron cargar los pedidos desde la base de datos.")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchOrders()
+  }, [])
 
   const filteredOrders =
     filterStatus === "todos"
       ? orders
       : orders.filter((o) => o.status === filterStatus)
 
-  const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
-    )
-    if (detailOrder?.id === orderId) {
-      setDetailOrder((prev) => (prev ? { ...prev, status: newStatus } : null))
+  const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
+    const previousOrders = orders
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)))
+    if (detailOrder?.id === orderId) setDetailOrder((prev) => (prev ? { ...prev, status: newStatus } : null))
+
+    try {
+      const result = await updateOrderStatus(orderId, newStatus)
+      if (result?.error) {
+        throw new Error(result.error)
+      }
+    } catch (err) {
+      console.error("Error updating order status:", err)
+      setOrders(previousOrders)
+      if (detailOrder?.id === orderId) {
+        const previous = previousOrders.find((o) => o.id === orderId)
+        if (previous) setDetailOrder(previous)
+      }
     }
   }
 
-  const handleCancel = (orderId: string) => {
-    handleStatusChange(orderId, "CANCELADO")
+  const handleCancel = async (orderId: string) => {
+    await handleStatusChange(orderId, "CANCELADO")
   }
 
   const openWhatsApp = (order: Order) => {
@@ -107,6 +138,21 @@ export function AdminOrders() {
           </p>
         </div>
       </div>
+
+      {isLoading && (
+        <div className="py-12 text-center rounded-xl border" style={{ background: "#ffffff", borderColor: "#e8e8e5", color: "#aaaaaa" }}>
+          <p className="text-sm">Cargando pedidos...</p>
+        </div>
+      )}
+
+      {error && !isLoading && (
+        <div className="py-12 text-center rounded-xl border" style={{ background: "#ffffff", borderColor: "#fecaca", color: "#ef4444" }}>
+          <p className="text-sm">{error}</p>
+        </div>
+      )}
+
+      {!isLoading && !error && (
+        <>
 
       {/* Status filter pills */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 pb-1">
@@ -256,6 +302,8 @@ export function AdminOrders() {
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* Order detail modal */}
       <Dialog open={!!detailOrder} onOpenChange={() => setDetailOrder(null)}>

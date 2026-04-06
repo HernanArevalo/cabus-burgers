@@ -19,6 +19,7 @@ import type {
   CheckoutFormData,
 } from "./types"
 import { DELIVERY_COST, paymentMethods } from "./mock-data"
+import { createOrder } from "./api"
 
 interface CartContextType {
   items: CartItem[]
@@ -37,7 +38,7 @@ interface CartContextType {
   paymentAdjustmentPercent: number
   total: number
   confirmedOrder: Order | null
-  confirmOrder: (formData: CheckoutFormData) => void
+  confirmOrder: (formData: CheckoutFormData) => Promise<boolean>
   resetOrder: () => void
 }
 
@@ -109,19 +110,56 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const total = baseTotal + paymentAdjustmentAmount
 
   const confirmOrder = useCallback(
-    (formData: CheckoutFormData) => {
-      const order: Order = {
-        id: `ORD-${Date.now().toString(36).toUpperCase()}`,
-        items: [...items],
-        subtotal,
-        shippingCost,
-        paymentAdjustment: paymentAdjustmentAmount,
-        total,
-        customer: formData,
-        status: "PENDIENTE",
-        createdAt: new Date().toISOString(),
+    async (formData: CheckoutFormData): Promise<boolean> => {
+      try {
+        const response = await createOrder({
+          items: items.map((item) => ({
+            product: { id: item.product.id },
+            selectedVariant: item.selectedVariant ? { id: item.selectedVariant.id } : null,
+            quantity: item.quantity,
+            totalPrice: item.totalPrice * item.quantity,
+            observations: item.observations,
+            selectedExtras: item.selectedExtras.map((extra) => ({
+              id: extra.id,
+              price: extra.price,
+            })),
+          })),
+          subtotal,
+          shippingCost,
+          paymentAdjustment: paymentAdjustmentAmount,
+          total,
+          customer: {
+            name: formData.name,
+            phone: formData.phone,
+            email: formData.email,
+            shippingMethod: formData.shippingMethod,
+            street: formData.street,
+            number: formData.number,
+            neighborhood: formData.neighborhood,
+            paymentMethod: formData.paymentMethod,
+            cashAmount: formData.cashAmount,
+            observations: formData.observations,
+          },
+        })
+
+        const order: Order = {
+          id: response.orderNumber ?? response.id ?? `ORD-${Date.now().toString(36).toUpperCase()}`,
+          items: [...items],
+          subtotal,
+          shippingCost,
+          paymentAdjustment: paymentAdjustmentAmount,
+          total,
+          customer: formData,
+          status: "PENDIENTE",
+          createdAt: response.createdAt ?? new Date().toISOString(),
+        }
+
+        setConfirmedOrder(order)
+        return true
+      } catch (error) {
+        console.error("Error confirming order:", error)
+        return false
       }
-      setConfirmedOrder(order)
     },
     [items, subtotal, shippingCost, paymentAdjustmentAmount, total]
   )
