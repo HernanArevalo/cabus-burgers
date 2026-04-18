@@ -20,18 +20,22 @@ import {
 import { CheckoutForm } from "@/components/checkout-form"
 import { OrderConfirmation } from "@/components/order-confirmation"
 import { CartPriceSummary } from "@/components/cart-price-summary"
+import { StoreConfig } from "@/lib/types"
 
 type Step = "cart" | "checkout" | "confirmation"
 
 interface CartSidebarProps {
   open: boolean
   onClose: () => void
+  storeConfig?: StoreConfig
+  
 }
 
-export function CartSidebar({ open, onClose }: CartSidebarProps) {
+export function CartSidebar({ open, onClose, storeConfig }: CartSidebarProps) {
   const { items, removeItem, updateQuantity, clearCart, totalItems, confirmedOrder, resetOrder } =
     useCart()
   const [step, setStep] = useState<Step>("cart")
+  const isOpen = storeConfig?.isOpen ?? true
 
   const handleClose = () => {
     if (step === "confirmation") {
@@ -194,11 +198,13 @@ export function CartSidebar({ open, onClose }: CartSidebarProps) {
               <div className="px-5 py-4 border-t border-border/20 bg-card">
                 <CartPriceSummary />
                 <button
+                  disabled={!isOpen}
                   onClick={handleProceedToCheckout}
-                  className="w-full mt-4 px-6 py-4 rounded-xl bg-primary text-primary-foreground font-bold text-base transition-all hover:brightness-110 active:scale-[0.98] shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+                  className="w-full mt-4 px-6 py-4 rounded-xl bg-primary text-primary-foreground font-bold text-base transition-all hover:brightness-110 active:scale-[0.98] shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed "
                 >
-                  Continuar
-                  <ArrowRight className="w-4 h-4" />
+                  {isOpen ? "Continuar" : "Cerrado"}
+                  
+                  {isOpen && <ArrowRight className="w-4 h-4" />}
                 </button>
                 <button
                   onClick={clearCart}

@@ -90,7 +90,7 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-background pb-24">
       {/* Hero */}
-      <HeroSection onOrderClick={handleOrderClick} storeConfig={storeConfig} />
+      <HeroSection onOrderClick={handleOrderClick} storeConfig={storeConfig || undefined} />
 
       {/* Menu section */}
       <div ref={menuRef}>
@@ -117,7 +117,7 @@ export default function HomePage() {
       />
 
       {/* Cart sidebar */}
-      <CartSidebar open={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      <CartSidebar open={isCartOpen} onClose={() => setIsCartOpen(false)} storeConfig={storeConfig || undefined} />
 
       {/* Floating cart button */}
       <CartFloatingButton onClick={() => setIsCartOpen(true)} />
