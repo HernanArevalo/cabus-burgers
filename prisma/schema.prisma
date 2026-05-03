@@ -1,0 +1,261 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+// ==========================================
+// STORE CONFIGURATION
+// ==========================================
+
+model StoreConfig {
+  id                  String   @id @default("store-config")
+  name                String   @default("CABUS HAMBURGUESAS")
+  logo                String   @default("/images/hero-burger.jpg")
+  coverImage          String   @default("/images/hero-burger.jpg")
+  description         String   @default("Las mejores smash burgers de la ciudad.")
+  tagline             String   @default("Smash Burgers de Verdad")
+  whatsapp            String   @default("5493511234567")
+  isOpen              Boolean  @default(true)
+  estimatedCloseTime  String   @default("23:00")
+  
+  // Message templates stored as JSON
+  messageTemplates    Json     @default("{\"orderConfirmation\": \"Hola {{nombre}}! Tu pedido #{{pedido_id}} fue confirmado.\", \"orderReady\": \"{{nombre}}, tu pedido #{{pedido_id}} esta listo!\", \"orderDelivery\": \"{{nombre}}, tu pedido esta en camino!\"}")
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+// ==========================================
+// CATEGORIES
+// ==========================================
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  order     Int       @default(0)
+  active    Boolean   @default(true)
+  
+  products  Product[]
+  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// ==========================================
+// EXTRAS (Global extras pool)
+// ==========================================
+
+model Extra {
+  id        String   @id @default(cuid())
+  name      String
+  price     Int      @default(0)
+  inStock   Boolean  @default(true)
+  
+  products  ProductExtra[]
+  orderItems OrderItemExtra[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// PRODUCTS
+// ==========================================
+
+model Product {
+  id          String    @id @default(cuid())
+  name        String
+  description String    @default("")
+  price       Int       @default(0)
+  image       String    @default("")
+  badge       String?
+  inStock     Boolean   @default(true)
+  order       Int       @default(0)
+  
+  categoryId  String
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  variants    Variant[]
+  extras      ProductExtra[]
+  orderItems  OrderItem[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([categoryId])
+}
+
+// ==========================================
+// VARIANTS
+// ==========================================
+
+model Variant {
+  id        String   @id @default(cuid())
+  name      String
+  price     Int
+  order     Int      @default(0)
+  
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  orderItems OrderItem[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([productId])
+}
+
+// ==========================================
+// PRODUCT <-> EXTRA (Many-to-Many)
+// ==========================================
+
+model ProductExtra {
+  productId String
+  extraId   String
+  
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  extra     Extra   @relation(fields: [extraId], references: [id], onDelete: Cascade)
+  
+  @@id([productId, extraId])
+  @@index([productId])
+  @@index([extraId])
+}
+
+// ==========================================
+// SHIPPING METHODS
+// ==========================================
+
+model ShippingMethod {
+  id          String   @id @default(cuid())
+  name        String
+  description String   @default("")
+  cost        Int      @default(0)
+  active      Boolean  @default(true)
+  
+  orders      Order[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ==========================================
+// PAYMENT METHODS
+// ==========================================
+
+model PaymentMethod {
+  id          String   @id @default(cuid())
+  name        String
+  description String   @default("")
+  adjustment  Int      @default(0)  // percentage: negative = discount, positive = surcharge
+  active      Boolean  @default(true)
+  
+  orders      Order[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ==========================================
+// ORDERS
+// ==========================================
+
+enum OrderStatus {
+  PENDIENTE
+  CONFIRMADO
+  EN_PREPARACION
+  LISTO
+  ENVIADO
+  ENTREGADO
+  CANCELADO
+}
+
+model Order {
+  id                String       @id @default(cuid())
+  orderNumber       String       @unique @default(cuid())
+  
+  // Pricing
+  subtotal          Int
+  shippingCost      Int          @default(0)
+  paymentAdjustment Int          @default(0)
+  total             Int
+  
+  // Customer info
+  customerName      String
+  customerPhone     String
+  customerEmail     String       @default("")
+  
+  // Shipping info
+  shippingMethodId  String?
+  shippingMethod    ShippingMethod? @relation(fields: [shippingMethodId], references: [id])
+  street            String       @default("")
+  streetNumber      String       @default("")
+  neighborhood      String       @default("")
+  
+  // Payment info
+  paymentMethodId   String?
+  paymentMethod     PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  cashAmount        String       @default("")
+  
+  // Order details
+  observations      String       @default("")
+  status            OrderStatus  @default(PENDIENTE)
+  
+  items             OrderItem[]
+  
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ==========================================
+// ORDER ITEMS
+// ==========================================
+
+model OrderItem {
+  id            String   @id @default(cuid())
+  
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  
+  variantId     String?
+  variant       Variant? @relation(fields: [variantId], references: [id])
+  
+  quantity      Int      @default(1)
+  unitPrice     Int      // Price at time of order
+  totalPrice    Int      // unitPrice * quantity + extras
+  observations  String   @default("")
+  
+  extras        OrderItemExtra[]
+  
+  createdAt     DateTime @default(now())
+  
+  @@index([orderId])
+  @@index([productId])
+}
+
+// ==========================================
+// ORDER ITEM <-> EXTRA (Many-to-Many with price snapshot)
+// ==========================================
+
+model OrderItemExtra {
+  orderItemId String
+  extraId     String
+  price       Int        // Price at time of order
+  
+  orderItem   OrderItem  @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  extra       Extra      @relation(fields: [extraId], references: [id])
+  
+  @@id([orderItemId, extraId])
+  @@index([orderItemId])
+}
