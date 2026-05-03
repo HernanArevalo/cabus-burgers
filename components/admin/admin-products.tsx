@@ -27,6 +27,8 @@ export function AdminProducts() {
   const [formPrice, setFormPrice] = useState("")
   const [formCategory, setFormCategory] = useState(categories[0])
   const [formBadge, setFormBadge] = useState("")
+  const [formImage, setFormImage] = useState("")
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [formInStock, setFormInStock] = useState(true)
   const [formExtras, setFormExtras] = useState<string[]>([])
   const [formVariants, setFormVariants] = useState<Variant[]>([])
@@ -50,6 +52,7 @@ export function AdminProducts() {
     setFormPrice("")
     setFormCategory(categories[0])
     setFormBadge("")
+    setFormImage("")
     setFormInStock(true)
     setFormExtras([])
     setFormVariants([])
@@ -64,6 +67,7 @@ export function AdminProducts() {
     setFormPrice(product.price.toString())
     setFormCategory(product.category)
     setFormBadge(product.badge || "")
+    setFormImage(product.image)
     setFormInStock(product.inStock)
     setFormExtras(product.extras.map((e) => e.id))
     setFormVariants([...product.variants])
@@ -128,6 +132,7 @@ export function AdminProducts() {
                 price: effectivePrice,
                 category: formCategory,
                 badge: formBadge || undefined,
+                image: formImage || p.image,
                 inStock: formInStock,
                 extras: selectedExtras,
                 variants: formVariants,
@@ -141,7 +146,7 @@ export function AdminProducts() {
         name: formName,
         description: formDescription,
         price: effectivePrice,
-        image: "/images/burger-clasica.jpg",
+        image: formImage || "/images/burger-clasica.jpg",
         category: formCategory,
         badge: formBadge || undefined,
         inStock: formInStock,
@@ -165,6 +170,30 @@ export function AdminProducts() {
     )
   }
 
+
+  const handleImageUpload = async (file: File) => {
+    setIsUploadingImage(true)
+    try {
+      const payload = new FormData()
+      payload.append("file", file)
+
+      const res = await fetch("/api/uploads/products", {
+        method: "POST",
+        body: payload,
+      })
+
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "No se pudo subir la imagen")
+      }
+
+      setFormImage(data.url)
+    } catch (error) {
+      console.error("Error uploading image", error)
+    } finally {
+      setIsUploadingImage(false)
+    }
+  }
   const toggleExtra = (extraId: string) => {
     setFormExtras((prev) =>
       prev.includes(extraId)
@@ -333,6 +362,26 @@ export function AdminProducts() {
                 style={{ borderColor: "#e8e8e5", color: "#1c1c1c" } as React.CSSProperties}
                 placeholder="Nombre del producto"
               />
+            </div>
+
+            {/* Product image */}
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: "#666666" }}>Imagen</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) void handleImageUpload(file)
+                }}
+                className="w-full text-sm"
+              />
+              {isUploadingImage && <p className="text-xs mt-1" style={{ color: "#999999" }}>Subiendo imagen...</p>}
+              {formImage && (
+                <div className="relative w-20 h-20 mt-2 rounded-lg overflow-hidden border" style={{ borderColor: "#e8e8e5" }}>
+                  <Image src={formImage} alt="Preview" fill className="object-cover" sizes="80px" />
+                </div>
+              )}
             </div>
 
             {/* Description */}
