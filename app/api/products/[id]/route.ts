@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { deleteCloudinaryImageByPublicId, extractCloudinaryPublicId } from "@/lib/cloudinary"
 
 // GET /api/products/[id]
 export async function GET(
@@ -65,6 +66,18 @@ export async function PUT(
   try {
     const { id } = await params
     const data = await request.json()
+
+    const existingProduct = await prisma.product.findUnique({ where: { id } })
+    if (!existingProduct) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 })
+    }
+
+    if (data.image && data.image !== existingProduct.image) {
+      const oldPublicId = extractCloudinaryPublicId(existingProduct.image)
+      if (oldPublicId && oldPublicId.startsWith("cabus-burgers-app/products/")) {
+        await deleteCloudinaryImageByPublicId(oldPublicId).catch(() => null)
+      }
+    }
 
     // Update product basic info
     await prisma.product.update({
@@ -165,9 +178,21 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
+
+    const existingProduct = await prisma.product.findUnique({ where: { id } })
+    if (!existingProduct) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 })
+    }
+
+    const publicId = extractCloudinaryPublicId(existingProduct.image)
+
     await prisma.product.delete({
       where: { id },
     })
+
+    if (publicId && publicId.startsWith("cabus-burgers-app/products/")) {
+      await deleteCloudinaryImageByPublicId(publicId).catch(() => null)
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
